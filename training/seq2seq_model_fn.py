@@ -318,7 +318,7 @@ class ModelFn(object):
     # save the last one
     model_path = os.path.join(
         self._params['model_prefix'], 'models', 'ckpt_epoch_%04d.pt'%e)
-    torch.save(self._model.state_dict(). model_path)
+    torch.save(self._model.state_dict(), model_path)
     # self.flush_curves()
 
   def write_summary(self, epoch):

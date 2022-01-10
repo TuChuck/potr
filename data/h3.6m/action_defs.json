@@ -1,0 +1,17 @@
+{
+	    "directions": "true", 
+"discussion": "true", 
+"eating": "true", 
+"greeting": "true", 
+"phoning": "true",
+    "posing": "true", 
+"purchases": "true", 
+"sitting": "true", 
+"sittingdown": "true",
+"smoking": "true",
+    "takingphoto": "true", 
+"waiting": "true", 
+"walking": "true", 
+"walkingdog": "true", 
+"walkingtogether": "true"
+}

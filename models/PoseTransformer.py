@@ -130,7 +130,7 @@ class PoseTransformer(nn.Module):
         alpha=self._pos_encoding_params[1]
     )
     # self.init_pose_encoder_decoders(init_fn)
-    self._use_class_token = False
+    self._use_class_token = True
     self.init_position_encodings()
     self.init_query_embedding()
 

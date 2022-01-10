@@ -281,6 +281,7 @@ class PoseGCN(nn.Module):
 class SimpleEncoder(nn.Module):
   def __init__(self,
                n_nodes=63,
+               hidden_dim=512,
                input_features=1,
                model_dim=128,
                p_dropout=0.1):
@@ -297,7 +298,7 @@ class SimpleEncoder(nn.Module):
     #A\in R^{NxN} x H\in R^{NxM} x  W\in R ^{MxO}
     self._input_features = input_features
     self._output_nodes = n_nodes
-    self._hidden_dim = 512
+    self._hidden_dim = hidden_dim
     self._model_dim = model_dim
     self._num_stage = 1
 

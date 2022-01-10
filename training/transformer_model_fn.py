@@ -179,6 +179,7 @@ if __name__ == '__main__':
   parser.add_argument('--finetuning_ckpt', type=str, default=None)
   parser.add_argument('--pos_enc_alpha', type=float, default=10)
   parser.add_argument('--pos_enc_beta', type=float, default=500)
+  parser.add_argument('--GCN_hidden_dim',type=int, default=512)
   args = parser.parse_args()
   
   params = vars(args)

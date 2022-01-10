@@ -75,6 +75,7 @@ def pose_decoder_gcn(params):
 def pose_encoder_gcn(params):
   encoder = GCN.SimpleEncoder(
       n_nodes=params['n_joints'],
+      hidden_dim=params['GCN_hidden_dim'],
       input_features=9 if params['pose_format'] == 'rotmat' else 3,
       #n_nodes=params['pose_dim'],
       #input_features=1,

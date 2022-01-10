@@ -1,0 +1,42 @@
+{
+    // IntelliSense를 사용하여 가능한 특성에 대해 알아보세요.
+    // 기존 특성에 대한 설명을 보려면 가리킵니다.
+    // 자세한 내용을 보려면 https://go.microsoft.com/fwlink/?linkid=830387을(를) 방문하세요.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [ "--model_prefix","./model_params/default",
+                "--batch_size","16",
+                "--data_path","./data/h3.6m",
+                "--learning_rate","0.0001",
+                "--max_epochs","500" ,
+                "--steps_per_epoch","200",
+                "--loss_fn","l1" ,
+                "--model_dim","128", 
+                "--num_encoder_layers","4" ,
+                "--num_decoder_layers","4" ,
+                "--num_heads","4" ,
+                "--dim_ffn","2048", 
+                "--dropout","0.3", 
+                "--lr_step_size","400", 
+                "--learning_rate_fn","step", 
+                "--warmup_epochs","100", 
+                "--pose_format","expmap", 
+                "--pose_embedding_type","gcn_enc", 
+                "--dataset","h36m_v2", 
+                "--pre_normalization", 
+                "--pad_decoder_inputs", 
+                "--non_autoregressive", 
+                "--pos_enc_alpha","10", 
+                "--pos_enc_beta","500",
+                "--predict_activity", 
+                "--action","walking",
+                "--GCN_hidden_dim","128"]
+        }
+    ]
+}
