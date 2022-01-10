@@ -1,5 +1,17 @@
 # Pose Transformers: Human Motion Prediction with Non-Autoregressive Transformers
 
+this repo is forked from https://github.com/idiap/potr
+
+
+--------------------------------
+
+
+
+
+
+--------------------------------
+
+
 
 ![alt text](imgs_docs/potr-eps-converted-to.png)
 
