@@ -23,7 +23,7 @@
     "lr_step_size": 400,
     "learning_rate_fn": "step",
     "warmup_epochs": 100,
-    "pose_format": "expmap",
+    "pose_format": "expmap_with_Vel",
     "remove_low_std": false,
     "remove_global_trans": false,
     "loss_fn": "l1",
@@ -53,6 +53,6 @@
     "num_activities": 1,
     "virtual_dataset_size": 3200,
     "n_joints": 21,
-    "input_dim": 63,
+    "input_dim": 126,
     "pose_dim": 63
 }

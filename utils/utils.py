@@ -57,6 +57,14 @@ def expmap_to_rotmat(action_sequence):
   rotmats = np.reshape(rotmats, [n_samples, n_joints, 3*3])
   return rotmats
 
+def expmap_to_expmap_with_Vel(action_sequence):
+  seq_v = np.zeros_like(action_sequence)
+  seq_v[1:] = action_sequence[1:] - action_sequence[:-1]
+  
+  seq_w_Vel =  np.concatenate((action_sequence, seq_v),axis=-1)#action sequnce with vel
+  
+  return seq_w_Vel
+
 def rotmat_to_expmap(action_sequence):
   """Convert rotmats to expmap.
 

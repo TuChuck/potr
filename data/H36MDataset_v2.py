@@ -36,6 +36,7 @@ adapted to be an isolated module in Pytorch [4].
 """
 
 
+from matplotlib.pyplot import axis
 import numpy as np
 import os
 import json
@@ -218,6 +219,8 @@ class H36MDataset(torch.utils.data.Dataset):
       return poses
     elif pose_format == 'rotmat':
       return utils.expmap_to_rotmat(poses)
+    elif pose_format == 'expmap_with_Vel':
+      return poses
     else:
       raise ValueError('Format {} unknown!'.format(pose_format))
 
@@ -288,9 +291,27 @@ class H36MDataset(torch.utils.data.Dataset):
     # total_framesxn_joints*joint_dim
     data_sel = self._data[the_key][start_frame:(start_frame+total_frames), :]
 
-    encoder_inputs[:, 0:input_size] = data_sel[0:src_seq_len,:]
-    decoder_inputs[:, 0:input_size] = \
-        data_sel[src_seq_len:src_seq_len+target_seq_len, :]
+    if self._params['pose_format'] == "expmap_with_Vel":
+      n_Joints = self._params['n_joints']
+
+      enc_inp_pos = data_sel[0:src_seq_len,:].reshape(src_seq_len, n_Joints, -1)
+      enc_inp_vel = np.zeros_like(enc_inp_pos)
+
+      enc_inp_vel[1:src_seq_len] = (data_sel[1:src_seq_len] - \
+                                      data_sel[:src_seq_len-1]).reshape(src_seq_len-1, n_Joints, -1)
+
+      encoder_inputs = np.concatenate((enc_inp_pos,enc_inp_vel), axis=-1).reshape(src_seq_len, -1)
+
+      dec_inp_pos = data_sel[src_seq_len:src_seq_len+target_seq_len, :].reshape(target_seq_len, n_Joints, -1)
+      dec_inp_vel = np.zeros_like(dec_inp_pos)
+
+      dec_inp_vel[1:src_seq_len] = (dec_inp_pos[1:] - dec_inp_pos[:-1])
+
+      decoder_inputs = np.concatenate((dec_inp_pos,dec_inp_vel), axis=-1).reshape(target_seq_len, -1)
+    else:
+      encoder_inputs[:, 0:input_size] = data_sel[0:src_seq_len,:]
+      decoder_inputs[:, 0:input_size] = \
+          data_sel[src_seq_len:src_seq_len+target_seq_len, :]
     # source_seq_len = src_seq_len + 1
     decoder_outputs[:, 0:pose_size] = data_sel[source_seq_len:, 0:pose_size]
 
@@ -300,9 +321,14 @@ class H36MDataset(torch.utils.data.Dataset):
       #if self._params['copy_method'] == 'uniform_scan':
       #  copy_uniform_scan(encoder_inputs, decoder_inputs)
 
-    distance, distance_norm = self.compute_difference_matrix(
-        encoder_inputs, decoder_outputs
-    )
+    if self._params['pose_format'] == "expmap_with_Vel":
+      distance, distance_norm = self.compute_difference_matrix(
+          enc_inp_pos.reshape(src_seq_len,-1), decoder_outputs
+      ) 
+    else:
+      distance, distance_norm = self.compute_difference_matrix(
+          encoder_inputs, decoder_outputs
+      )
 
     return {
         'encoder_inputs': encoder_inputs, 
@@ -328,7 +354,7 @@ class H36MDataset(torch.utils.data.Dataset):
     euler_data = {e['actions']: e['decoder_outputs_euler'] for e in batch}
     batch = collate_fn(batch)
     decoder_inputs = batch['decoder_inputs'].view(-1, tgt_len, size)
-    decoder_outputs = batch['decoder_outputs'].view(-1, tgt_len, size)
+    decoder_outputs = batch['decoder_outputs'].view(-1, tgt_len, pose_size)
     encoder_inputs = batch['encoder_inputs'].view(-1, src_len, size)
     distance = batch['src_tgt_distance'].view(-1, src_len, tgt_len)
 
@@ -395,12 +421,35 @@ class H36MDataset(torch.utils.data.Dataset):
       data_sel_srnn = self._data_srnn[the_key]
       data_sel_srnn = data_sel_srnn[(idx-src_seq_len):(idx+tgt_seq_len) , :]
 
-      encoder_inputs[i, :, :] = data_sel[0:src_seq_len, :]
-      decoder_inputs[i, :, :] = data_sel[src_seq_len:(src_seq_len+tgt_seq_len), :]
-      decoder_outputs[i, :, :] = data_sel[src_seq_len:, 0:pose_size]
-      action_id_instance[i, :] = self._action_ids[action]
-      distance[i] = self.compute_difference_matrix(
-          encoder_inputs[i], decoder_outputs[i])[0]
+      if self._params['pose_format'] == "expmap_with_Vel":
+        n_Joints = self._params['n_joints']
+
+        enc_inp_pos = data_sel[0:src_seq_len,:].reshape(src_seq_len, n_Joints, -1)
+        enc_inp_vel = np.zeros_like(enc_inp_pos)
+
+        enc_inp_vel[1:src_seq_len] = (data_sel[1:src_seq_len] - \
+                                        data_sel[:src_seq_len-1]).reshape(src_seq_len-1, n_Joints, -1)
+
+        encoder_inputs[i] = np.concatenate((enc_inp_pos,enc_inp_vel), axis=-1).reshape(src_seq_len, -1)
+
+        dec_inp_pos = data_sel[src_seq_len:src_seq_len+tgt_seq_len, :].reshape(tgt_seq_len, n_Joints, -1)
+        dec_inp_vel = np.zeros_like(dec_inp_pos)
+
+        dec_inp_vel[1:src_seq_len] = (dec_inp_pos[1:] - dec_inp_pos[:-1])
+
+        decoder_inputs[i] = np.concatenate((dec_inp_pos,dec_inp_vel), axis=-1).reshape(tgt_seq_len, -1)
+
+        decoder_outputs[i, :, :] = data_sel[src_seq_len:, 0:pose_size]
+
+        distance[i] = self.compute_difference_matrix(
+            enc_inp_pos.reshape(src_seq_len,-1), decoder_outputs[i])[0]
+      else:
+        encoder_inputs[i, :, :] = data_sel[0:src_seq_len, :]
+        decoder_inputs[i, :, :] = data_sel[src_seq_len:(src_seq_len+tgt_seq_len), :]
+        decoder_outputs[i, :, :] = data_sel[src_seq_len:, 0:pose_size]
+        action_id_instance[i, :] = self._action_ids[action]
+        distance[i] = self.compute_difference_matrix(
+            encoder_inputs[i], decoder_outputs[i])[0]
       # tgt_seq_len x 96
       decoder_outputs_srnn = np.expand_dims(data_sel_srnn[src_seq_len:], axis=0)
       # tgt_seq_len x 32 x 3
@@ -492,8 +541,12 @@ class H36MDataset(torch.utils.data.Dataset):
       self.compute_norm_stats(all_dataset)
     self.normalize_data()
 
-    self._pose_dim = self._norm_stats['std'].shape[-1]
-    self._data_dim = self._pose_dim
+    if self._params['pose_format'] == "expmap_with_Vel":
+      self._pose_dim = self._norm_stats['std'].shape[-1]
+      self._data_dim = self._pose_dim * 2     ## expmap 3 values and velocity 3 values
+    else:
+      self._pose_dim = self._norm_stats['std'].shape[-1]
+      self._data_dim = self._pose_dim
 
     thisname = self.__class__.__name__
     print('[INFO] ({}) Pose dim: {} Data dim: {}'.format(
@@ -535,7 +588,7 @@ class H36MDataset(torch.utils.data.Dataset):
     if is_normalized:
       action_sequence_ = action_sequence_*self._norm_stats['std'] + self._norm_stats['mean']
     rotmats = action_sequence_.reshape((B*S, _NMAJOR_JOINTS, -1))
-    if org_format == 'expmap':
+    if org_format == 'expmap' or org_format == 'expmap_with_Vel':
       rotmats = utils.expmap_to_rotmat(rotmats)
 
     euler_maps = utils.rotmat_to_euler(rotmats)

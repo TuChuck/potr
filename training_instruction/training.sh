@@ -1,5 +1,5 @@
 python training/transformer_model_fn.py \
-  --model_prefix=./model_params/original \
+  --model_prefix=./model_params/POTR_w_vel \
   --batch_size=16 \
   --data_path=./data/h3.6m \
   --learning_rate=0.0001 \
@@ -15,7 +15,7 @@ python training/transformer_model_fn.py \
   --lr_step_size=400 \
   --learning_rate_fn=step \
   --warmup_epochs=100 \
-  --pose_format=rotmat \
+  --pose_format=expmap_with_Vel \
   --pose_embedding_type=gcn_enc \
   --dataset=h36m_v2 \
   --pre_normalization \
@@ -25,4 +25,4 @@ python training/transformer_model_fn.py \
   --pos_enc_beta=500 \
   --predict_activity \
   --action=all \
-  --GCN_hidden_dim=512
+  --GCN_hidden_dim=128

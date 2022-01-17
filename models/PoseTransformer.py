@@ -54,7 +54,7 @@ _SOURCE_LENGTH = 110
 _TARGET_LENGTH = 55
 _POSE_DIM = 54
 _PAD_LENGTH = _SOURCE_LENGTH
-
+_N_JOINT = 21
 
 class PoseTransformer(nn.Module):
   """Implements the sequence-to-sequence Transformer .model for pose prediction."""
@@ -80,7 +80,8 @@ class PoseTransformer(nn.Module):
                pose_decoder=None,
                copy_method='uniform_scan',
                query_selection=False,
-               pos_encoding_params=(10000, 1)):
+               pos_encoding_params=(10000, 1),
+               n_joint=_N_JOINT):
     """Initialization of pose transformers."""
     super(PoseTransformer, self).__init__()
     self._target_seq_length = target_seq_length
@@ -100,6 +101,7 @@ class PoseTransformer(nn.Module):
     thisname = self.__class__.__name__
     self._copy_method = copy_method
     self._pos_encoding_params = pos_encoding_params
+    self.n_joint = n_joint
 
     self._transformer = Transformer(
         num_encoder_layers=num_encoder_layers,
@@ -314,7 +316,8 @@ class PoseTransformer(nn.Module):
           self._target_seq_length, -1, self._pose_dim)
       # apply residual connection between target query and predicted pose
       # [tgt_seq_len, batch_size, pose_dim]
-      out_sequence_ = out_sequence_ + target_pose_seq_[:, :, 0:end]
+      out_sequence_ = self.residual_line(out_sequence_, target_pose_seq_, end)
+      # out_sequence_ = out_sequence_ + target_pose_seq_[:, :, 0:end]
       # [batch_size, tgt_seq_len, pose_dim]
       out_sequence_ = torch.transpose(out_sequence_, 0, 1)
       out_sequence.append(out_sequence_)
@@ -324,7 +327,16 @@ class PoseTransformer(nn.Module):
       return out_sequence, out_class, attn_weights, enc_weights, mat
 
     return out_sequence, attn_weights, enc_weights, mat
+  def residual_line(self, out_sequence_, target_pose_seq_, end):
+    if out_sequence_.shape[-1] != target_pose_seq_.shape[-1]:
+      _n = target_pose_seq_.shape[-1] / out_sequence_.shape[-1]
+      _,bs,_ = target_pose_seq_.shape
+      tgt_seq_ = target_pose_seq_.reshape(self._target_seq_length,bs,self.n_joint,-1) 
+      target_pose_seq_ = tgt_seq_[:,:,:,:3].reshape(self._target_seq_length,bs,-1)
 
+      return out_sequence_ + target_pose_seq_
+    else:
+      return out_sequence_ + target_pose_seq_[:, :, 0:end]
   def predict_activity(self, attn_output, memory):
     """Performs activity prediction either from memory or class token.
 

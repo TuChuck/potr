@@ -61,9 +61,16 @@ def pose_decoder_mlp(params):
 
 
 def pose_decoder_gcn(params):
+  if params['pose_format'] == 'rotmat':
+    output_feature = 9
+  elif params['pose_format'] == 'expmap_with_Vel':
+    output_feature = 6
+  else:
+    output_feature = 3
+
   decoder = GCN.PoseGCN(
       input_features=params['model_dim'],
-      output_features = 9 if params['pose_format'] == 'rotmat' else 3,
+      output_features = output_feature,
       model_dim=params['model_dim'],
       output_nodes=params['n_joints'],
       p_dropout=params['dropout'],
@@ -73,10 +80,16 @@ def pose_decoder_gcn(params):
   return decoder
 
 def pose_encoder_gcn(params):
+  if params['pose_format'] == 'rotmat':
+    input_features = 9
+  elif params['pose_format'] == 'expmap_with_Vel':
+    input_features = 6
+  else:
+    input_features = 3
   encoder = GCN.SimpleEncoder(
       n_nodes=params['n_joints'],
       hidden_dim=params['GCN_hidden_dim'],
-      input_features=9 if params['pose_format'] == 'rotmat' else 3,
+      input_features=input_features,
       #n_nodes=params['pose_dim'],
       #input_features=1,
       model_dim=params['model_dim'], 
@@ -87,8 +100,14 @@ def pose_encoder_gcn(params):
 
 
 def pose_encoder_conv1d(params):
+  if params['pose_format'] == 'rotmat':
+    input_channels = 9
+  elif params['pose_format'] == 'expmap_with_Vel':
+    input_channels = 6
+  else:
+    input_channels = 3
   encoder = Conv1DEncoder.Pose1DEncoder(
-      input_channels=9 if params['pose_format'] == 'rotmat' else 3,
+      input_channels=input_channels,
       output_channels=params['model_dim'],
       n_joints=params['n_joints']
   )
@@ -96,7 +115,13 @@ def pose_encoder_conv1d(params):
 
 
 def pose_encoder_conv1dtemporal(params):
-  dof = 9 if params['pose_format'] == 'rotmat' else 3
+  if params['pose_format'] == 'rotmat':
+    _dof = 9
+  elif params['pose_format'] == 'expmap_with_Vel':
+    _dof = 6
+  else:
+    _dof = 3
+  dof = _dof
   encoder = Conv1DEncoder.Pose1DTemporalEncoder(
       input_channels=dof*params['n_joints'],
       output_channels=params['model_dim']
