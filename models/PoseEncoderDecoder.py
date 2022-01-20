@@ -61,16 +61,14 @@ def pose_decoder_mlp(params):
 
 
 def pose_decoder_gcn(params):
-  if params['pose_format'] == 'rotmat':
-    output_feature = 9
-  elif params['pose_format'] == 'expmap_with_Vel':
-    output_feature = 6
-  elif params['pose_format'] == 'expmap_long_range':
-    output_feature = 9
-  elif params['pose_format'] == 'rotmat_long_range':
-    output_feature = 27
+  pose_format, input_scale = _select_params(params)
+
+  if pose_format == 'expmap':
+    output_feature = 3 * input_scale
+  elif pose_format == 'rotmat':
+    output_feature = 9 * input_scale
   else:
-    output_feature = 3
+    raise ValueError("please check pose_format, it must be one of [expmat, rotmat]")
 
   decoder = GCN.PoseGCN(
       input_features=params['model_dim'],
@@ -84,16 +82,15 @@ def pose_decoder_gcn(params):
   return decoder
 
 def pose_encoder_gcn(params):
-  if params['pose_format'] == 'rotmat':
-    input_features = 9
-  elif params['pose_format'] == 'expmap_with_Vel':
-    input_features = 6
-  elif params['pose_format'] == 'expmap_long_range':
-    input_features = 9
-  elif params['pose_format'] == 'rotmat_long_range':
-    input_features = 27
+  pose_format, input_scale = _select_params(params)
+
+  if pose_format == 'expmap':
+    input_features = 3 * input_scale
+  elif pose_format == 'rotmat':
+    input_features = 9 * input_scale
   else:
-    input_features = 3
+    raise ValueError("please check pose_format, it must be one of [expmat, rotmat]")
+
   encoder = GCN.SimpleEncoder(
       n_nodes=params['n_joints'],
       hidden_dim=params['GCN_hidden_dim'],
@@ -108,16 +105,15 @@ def pose_encoder_gcn(params):
 
 
 def pose_encoder_conv1d(params):
-  if params['pose_format'] == 'rotmat':
-    input_channels = 9
-  elif params['pose_format'] == 'expmap_with_Vel':
-    input_channels = 6
-  elif params['pose_format'] == 'expmap_long_range':
-    input_channels = 9
-  elif params['pose_format'] == 'rotmat_long_range':
-    input_channels = 27
+  pose_format, input_scale = _select_params(params)
+
+  if pose_format == 'expmap':
+    input_channels = 3 * input_scale
+  elif pose_format == 'rotmat':
+    input_channels = 9 * input_scale
   else:
-    input_channels = 3
+    raise ValueError("please check pose_format, it must be one of [expmat, rotmat]")
+    
   encoder = Conv1DEncoder.Pose1DEncoder(
       input_channels=input_channels,
       output_channels=params['model_dim'],
@@ -127,23 +123,33 @@ def pose_encoder_conv1d(params):
 
 
 def pose_encoder_conv1dtemporal(params):
-  if params['pose_format'] == 'rotmat':
-    _dof = 9
-  elif params['pose_format'] == 'expmap_with_Vel':
-    _dof = 6
-  elif params['pose_format'] == 'expmap_long_range':
-    _dof = 9
-  elif params['pose_format'] == 'rotmat_long_range':
-    _dof = 27
+  pose_format, input_scale = _select_params(params)
+
+  if pose_format == 'expmap':
+    dof = 3 * input_scale
+  elif pose_format == 'rotmat':
+    dof = 9 * input_scale
   else:
-    _dof = 3
-  dof = _dof
+    raise ValueError("please check pose_format, it must be one of [expmat, rotmat]")
+    
   encoder = Conv1DEncoder.Pose1DTemporalEncoder(
       input_channels=dof*params['n_joints'],
       output_channels=params['model_dim']
   )
   return encoder
 
+def _select_params(params):
+  _format = params['pose_format'].split('_')
+  pose_format = _format[0]
+
+  if len(_format) > 1:
+    DP_method = _format[1]                  ## Data Processing method
+    n_velocity_frame = len(_format[2:]) + 1 ## +1 is for including currunt pose
+  else:
+    DP_method = 'onlypose'
+    n_velocity_frame = 1
+
+  return pose_format, n_velocity_frame
 
 def select_pose_encoder_decoder_fn(params):
   if params['pose_embedding_type'].lower() == 'simple':

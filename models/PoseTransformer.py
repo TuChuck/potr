@@ -81,7 +81,8 @@ class PoseTransformer(nn.Module):
                copy_method='uniform_scan',
                query_selection=False,
                pos_encoding_params=(10000, 1),
-               n_joint=_N_JOINT):
+               n_joint=_N_JOINT,
+               pose_format = 'expmap'):
     """Initialization of pose transformers."""
     super(PoseTransformer, self).__init__()
     self._target_seq_length = target_seq_length
@@ -102,6 +103,7 @@ class PoseTransformer(nn.Module):
     self._copy_method = copy_method
     self._pos_encoding_params = pos_encoding_params
     self.n_joint = n_joint
+    self._pose_format = pose_format
 
     self._transformer = Transformer(
         num_encoder_layers=num_encoder_layers,
@@ -330,10 +332,16 @@ class PoseTransformer(nn.Module):
 
   def residual_line(self, out_sequence_, target_pose_seq_, end):
     if out_sequence_.shape[-1] != target_pose_seq_.shape[-1]:
+      if self._pose_format == 'expmap':
+        onlypose_len = 3
+      elif self._pose_format == 'rotmat':
+        onlypose_len = 9
+      else:
+        raise ValueError("Please chech the pose_format, current pose_format is {}".format(self._pose_format))
       _n = target_pose_seq_.shape[-1] / out_sequence_.shape[-1]
       _,bs,_ = target_pose_seq_.shape
       tgt_seq_ = target_pose_seq_.reshape(self._target_seq_length,bs,self.n_joint,-1) 
-      target_pose_seq_ = tgt_seq_[:,:,:,:9].reshape(self._target_seq_length,bs,-1)
+      target_pose_seq_ = tgt_seq_[:,:,:,:onlypose_len].reshape(self._target_seq_length,bs,-1)
       return out_sequence_ + target_pose_seq_
     else:
       return out_sequence_ + target_pose_seq_[:, :, 0:end]
@@ -471,7 +479,8 @@ def model_factory(params, pose_embedding_fn, pose_decoder_fn):
       pose_embedding=pose_embedding_fn(params),
       pose_decoder=pose_decoder_fn(params),
       query_selection=params['query_selection'],
-      pos_encoding_params=(params['pos_enc_beta'], params['pos_enc_alpha'])
+      pos_encoding_params=(params['pos_enc_beta'], params['pos_enc_alpha']),
+      pose_format = params['pose_format'].split('_')[0]
   )
 
 

@@ -36,6 +36,7 @@ adapted to be an isolated module in Pytorch [4].
 """
 
 
+from multiprocessing.sharedctypes import Value
 from matplotlib.pyplot import axis
 import numpy as np
 import os
@@ -214,17 +215,25 @@ class H36MDataset(torch.utils.data.Dataset):
 
   def convert_to_format(self, poses):
     """Convert poses to required format."""
-    pose_format = self._params['pose_format']
+    pose_format = self._params['pose_format'].split('_')[0]
     if pose_format == 'expmap':
       return poses
     elif pose_format == 'rotmat':
       return utils.expmap_to_rotmat(poses)
-    elif pose_format == 'expmap_with_Vel':
-      return poses
-    elif pose_format == 'expmap_long_range':
-      return poses
-    elif pose_format == 'rotmat_long_range':
-      return utils.expmap_to_rotmat(poses)
+    # elif pose_format == 'expmap_with_Vel':
+    #   return poses
+    # elif pose_format == 'expmap_long_range':
+    #   return poses
+    # elif pose_format == 'rotmat_long_range_3':
+    #   return utils.expmap_to_rotmat(poses)
+    # elif pose_format == 'rotmat_long_range_5':
+    #   return utils.expmap_to_rotmat(poses)
+    # elif pose_format == 'rotmat_long_range_5_10':
+    #   return utils.expmap_to_rotmat(poses)
+    # elif pose_format == 'rotmat_long_range_5_15':
+    #   return utils.expmap_to_rotmat(poses)
+    # elif pose_format == 'rotmat_long_range_5_10_15':
+    #   return utils.expmap_to_rotmat(poses)
     else:
       raise ValueError('Format {} unknown!'.format(pose_format))
 
@@ -295,53 +304,12 @@ class H36MDataset(torch.utils.data.Dataset):
     # total_framesxn_joints*joint_dim
     data_sel = self._data[the_key][start_frame:(start_frame+total_frames), :]
 
-    if self._params['pose_format'] == "expmap_with_Vel":
-      n_Joints = self._params['n_joints']
-
-      enc_inp_pos = data_sel[0:src_seq_len,:].reshape(src_seq_len, n_Joints, -1)
-      enc_inp_vel = np.zeros_like(enc_inp_pos)
-
-      enc_inp_vel[1:src_seq_len] = (data_sel[1:src_seq_len] - \
-                                      data_sel[:src_seq_len-1]).reshape(src_seq_len-1, n_Joints, -1)
-
-      encoder_inputs = np.concatenate((enc_inp_pos,enc_inp_vel), axis=-1).reshape(src_seq_len, -1)
-
-      dec_inp_pos = data_sel[src_seq_len:src_seq_len+target_seq_len, :].reshape(target_seq_len, n_Joints, -1)
-      dec_inp_vel = np.zeros_like(dec_inp_pos)
-
-      dec_inp_vel[1:src_seq_len] = (dec_inp_pos[1:] - dec_inp_pos[:-1])
-
-      decoder_inputs = np.concatenate((dec_inp_pos,dec_inp_vel), axis=-1).reshape(target_seq_len, -1)
-
-    elif self._params['pose_format'] == "expmap_long_range":
-      n_Joints = self._params['n_joints']
-
-      enc_inp_pos = data_sel[0:src_seq_len,:].reshape(src_seq_len, n_Joints, -1)
-      enc_inp_vel = np.zeros_like(enc_inp_pos)
-      enc_inp_long_range = np.zeros_like(enc_inp_pos)  ## range 5
-
-      enc_inp_vel[1:src_seq_len] = (data_sel[1:src_seq_len] - \
-                                      data_sel[:src_seq_len-1]).reshape(src_seq_len-1, n_Joints, -1)
-
-      enc_inp_long_range[5:src_seq_len] = (data_sel[5:src_seq_len] - \
-                                      data_sel[:src_seq_len-5]).reshape(src_seq_len-5, n_Joints, -1)
-
-
-      encoder_inputs = np.concatenate((enc_inp_pos,enc_inp_vel,enc_inp_long_range), axis=-1).reshape(src_seq_len, -1)
-
-      dec_inp_pos = data_sel[src_seq_len:src_seq_len+target_seq_len, :].reshape(target_seq_len, n_Joints, -1)
-      dec_inp_vel = np.zeros_like(dec_inp_pos)
-      dec_inp_long_range = np.zeros_like(dec_inp_pos)
-
-      dec_inp_vel[1:src_seq_len] = (dec_inp_pos[1:] - dec_inp_pos[:-1])
-      dec_inp_long_range[5:src_seq_len] = (dec_inp_pos[5:] - dec_inp_pos[:-5])
-
-      decoder_inputs = np.concatenate((dec_inp_pos,dec_inp_vel,dec_inp_long_range), axis=-1).reshape(target_seq_len, -1)
-
-    elif self._params['pose_format'] == "rotmat_long_range":
+    if self._pose_format == 'expmap' and self._DP_method == 'vel':
+      encoder_inputs[:], decoder_inputs[:] = self._expmap_long_range_fn(data_sel, src_seq_len, target_seq_len)
+    elif self._pose_format == 'rotmat' and self._DP_method == 'vel':
       encoder_inputs[:], decoder_inputs[:] = self._rotmat_long_range_fn(data_sel, src_seq_len, target_seq_len)
-
     else:
+      print('please check pose_format (it have to be one of [expmap, rotmat])')
       encoder_inputs[:, 0:input_size] = data_sel[0:src_seq_len,:]
       decoder_inputs[:, 0:input_size] = \
           data_sel[src_seq_len:src_seq_len+target_seq_len, :]
@@ -355,22 +323,16 @@ class H36MDataset(torch.utils.data.Dataset):
       #if self._params['copy_method'] == 'uniform_scan':
       #  copy_uniform_scan(encoder_inputs, decoder_inputs)
 
-    if self._params['pose_format'] == "expmap_with_Vel":
-      distance, distance_norm = self.compute_difference_matrix(
-          enc_inp_pos.reshape(src_seq_len,-1), decoder_outputs
-      ) 
-    elif self._params['pose_format'] == "expmap_long_range":
-      distance, distance_norm = self.compute_difference_matrix(
-          enc_inp_pos.reshape(src_seq_len,-1), decoder_outputs
-      )
-    elif self._params['pose_format'] == "rotmat_long_range":
+    if self._DP_method == 'vel':
       distance, distance_norm = self.compute_difference_matrix(
           data_sel[:src_seq_len], decoder_outputs
-      )
-    else:
+      ) 
+    elif self._DP_method == 'onlypose':
       distance, distance_norm = self.compute_difference_matrix(
           encoder_inputs, decoder_outputs
       )
+    else:
+      raise ValueError("please check data processing method, it must be one of [vel, onlypose]")
 
     return {
         'encoder_inputs': encoder_inputs, 
@@ -381,6 +343,36 @@ class H36MDataset(torch.utils.data.Dataset):
         'action_id_instance': [self._action_ids[action]]*target_seq_len,
         'src_tgt_distance': distance
     }
+  def _expmap_long_range_fn(self, data_sel, src_seq_len, target_seq_len):
+    """
+    __get_items__ in rotmat_long_range_form 
+    [rotmat 9 values, rotmat 9 values previous to current status, rotmat 9 values 5 frame previous to current status]
+    output = [9,9,9] shape
+    """
+    n_Joints = self._params['n_joints']
+    velocity_frame = self._velocity_frame
+
+    enc_inp_pos = data_sel[0:src_seq_len,:].reshape(src_seq_len, n_Joints, -1)
+    enc_inp_vel = np.zeros_like(enc_inp_pos)
+
+    dec_inp_pos = data_sel[src_seq_len:src_seq_len+target_seq_len, :].reshape(target_seq_len, n_Joints, -1)
+    dec_inp_vel = np.zeros_like(dec_inp_pos)
+
+    encoder_inputs = enc_inp_pos
+    decoder_inputs = dec_inp_pos
+    for nf in velocity_frame:
+      enc_inp_vel[nf:src_seq_len] = (data_sel[nf:src_seq_len] - \
+                                      data_sel[:src_seq_len-nf]).reshape(src_seq_len-nf, n_Joints, -1)
+      dec_inp_vel[nf:src_seq_len] = (dec_inp_pos[nf:] - dec_inp_pos[:-nf])
+
+      encoder_inputs = np.concatenate((encoder_inputs,enc_inp_vel), axis=-1)
+      decoder_inputs = np.concatenate((decoder_inputs,dec_inp_vel), axis=-1)
+
+    encoder_inputs = encoder_inputs.reshape(src_seq_len, -1)
+    decoder_inputs = decoder_inputs.reshape(target_seq_len, -1)
+      
+    return encoder_inputs, decoder_inputs
+
   def _rotmat_long_range_fn(self, data_sel, src_seq_len, target_seq_len):
     """
     __get_items__ in rotmat_long_range_form 
@@ -388,31 +380,29 @@ class H36MDataset(torch.utils.data.Dataset):
     output = [9,9,9] shape
     """
     n_Joints = self._params['n_joints']
+    velocity_frame = self.velocity_frame
 
     enc_inp_pos = data_sel[0:src_seq_len,:].reshape(src_seq_len, n_Joints,3,3)
     enc_inp_vel = np.zeros_like(enc_inp_pos)
-    enc_inp_long_range = np.zeros_like(enc_inp_pos)  ## range 5
-
-    enc_inp_vel[1:src_seq_len] = (enc_inp_pos[:-1].transpose(0,1,3,2) @ enc_inp_pos[1:])
-    enc_inp_vel = enc_inp_vel.reshape(src_seq_len,n_Joints,-1)
-
-    enc_inp_long_range[5:src_seq_len] = enc_inp_pos[:-5].transpose(0,1,3,2) @ enc_inp_pos[5:]
-    enc_inp_long_range = enc_inp_long_range.reshape(src_seq_len,n_Joints,-1)
-
-    encoder_inputs = np.concatenate((enc_inp_pos.reshape(src_seq_len, n_Joints,-1), \
-      enc_inp_vel,enc_inp_long_range), axis=-1).reshape(src_seq_len, -1)
 
     dec_inp_pos = data_sel[src_seq_len:src_seq_len+target_seq_len, :].reshape(target_seq_len, n_Joints,3,3)
     dec_inp_vel = np.zeros_like(dec_inp_pos)
-    dec_inp_long_range = np.zeros_like(dec_inp_pos)
 
-    dec_inp_vel[1:target_seq_len] = (dec_inp_pos[:-1].transpose(0,1,3,2) @ dec_inp_pos[1:])
-    dec_inp_vel = dec_inp_vel.reshape(target_seq_len,n_Joints,-1)
+    encoder_inputs = enc_inp_pos.reshape(src_seq_len, n_Joints,-1)
+    decoder_inputs = dec_inp_pos.reshape(target_seq_len, n_Joints,-1)
+    for nf in velocity_frame:
+      enc_inp_vel[nf:src_seq_len] = (enc_inp_pos[:-nf].transpose(0,1,3,2) @ enc_inp_pos[nf:])
+      enc_inp_vel = enc_inp_vel.reshape(src_seq_len,n_Joints,-1)
 
-    dec_inp_long_range[5:target_seq_len] = (dec_inp_pos[:-5].transpose(0,1,3,2) @ dec_inp_pos[5:])
-    dec_inp_long_range = dec_inp_long_range.reshape(target_seq_len,n_Joints,-1)
+      encoder_inputs = np.concatenate((encoder_inputs, enc_inp_vel), axis=-1)
 
-    decoder_inputs = np.concatenate((dec_inp_pos.reshape(target_seq_len, n_Joints,-1),dec_inp_vel,dec_inp_long_range), axis=-1).reshape(target_seq_len, -1)
+      dec_inp_vel[nf:target_seq_len] = (dec_inp_pos[:-nf].transpose(0,1,3,2) @ dec_inp_pos[nf:])
+      dec_inp_vel = dec_inp_vel.reshape(target_seq_len,n_Joints,-1)
+
+      decoder_inputs = np.concatenate((decoder_inputs,dec_inp_vel), axis=-1)
+
+    encoder_inputs = encoder_inputs.reshape(src_seq_len, -1)
+    decoder_inputs = decoder_inputs.reshape(target_seq_len, -1)
 
     return encoder_inputs, decoder_inputs
     
@@ -488,6 +478,7 @@ class H36MDataset(torch.utils.data.Dataset):
     action_id_instance= np.zeros((n_seeds, tgt_seq_len), dtype=np.int64)
     distance = np.zeros((n_seeds, src_seq_len, tgt_seq_len), dtype=np.float32)
 
+
     for i in range(self._test_n_seeds):
       _, subsequence, idx = seeds[i]
       idx = idx + source_seq_len_complete
@@ -497,72 +488,30 @@ class H36MDataset(torch.utils.data.Dataset):
       data_sel_srnn = self._data_srnn[the_key]
       data_sel_srnn = data_sel_srnn[(idx-src_seq_len):(idx+tgt_seq_len) , :]
 
-      if self._params['pose_format'] == "expmap_with_Vel":
-        n_Joints = self._params['n_joints']
-
-        enc_inp_pos = data_sel[0:src_seq_len,:].reshape(src_seq_len, n_Joints, -1)
-        enc_inp_vel = np.zeros_like(enc_inp_pos)
-
-        enc_inp_vel[1:src_seq_len] = (data_sel[1:src_seq_len] - \
-                                        data_sel[:src_seq_len-1]).reshape(src_seq_len-1, n_Joints, -1)
-
-        encoder_inputs[i] = np.concatenate((enc_inp_pos,enc_inp_vel), axis=-1).reshape(src_seq_len, -1)
-
-        dec_inp_pos = data_sel[src_seq_len:src_seq_len+tgt_seq_len, :].reshape(tgt_seq_len, n_Joints, -1)
-        dec_inp_vel = np.zeros_like(dec_inp_pos)
-
-        dec_inp_vel[1:src_seq_len] = (dec_inp_pos[1:] - dec_inp_pos[:-1])
-
-        decoder_inputs[i] = np.concatenate((dec_inp_pos,dec_inp_vel), axis=-1).reshape(tgt_seq_len, -1)
-
-        decoder_outputs[i, :, :] = data_sel[src_seq_len:, 0:pose_size]
-
-        distance[i] = self.compute_difference_matrix(
-            enc_inp_pos.reshape(src_seq_len,-1), decoder_outputs[i])[0]
-      elif self._params['pose_format'] == "expmap_long_range":
-        n_Joints = self._params['n_joints']
-
-        enc_inp_pos = data_sel[0:src_seq_len,:].reshape(src_seq_len, n_Joints, -1)
-        enc_inp_vel = np.zeros_like(enc_inp_pos)
-        enc_inp_long_range = np.zeros_like(enc_inp_pos)  ## range 5
-
-        enc_inp_vel[1:src_seq_len] = (data_sel[1:src_seq_len] - \
-                                        data_sel[:src_seq_len-1]).reshape(src_seq_len-1, n_Joints, -1)
-
-        enc_inp_long_range[5:src_seq_len] = (data_sel[5:src_seq_len] - \
-                                        data_sel[:src_seq_len-5]).reshape(src_seq_len-5, n_Joints, -1)
-
-
-        encoder_inputs[i] = np.concatenate((enc_inp_pos,enc_inp_vel,enc_inp_long_range), axis=-1).reshape(src_seq_len, -1)
-
-        dec_inp_pos = data_sel[src_seq_len:src_seq_len+tgt_seq_len, :].reshape(tgt_seq_len, n_Joints, -1)
-        dec_inp_vel = np.zeros_like(dec_inp_pos)
-        dec_inp_long_range = np.zeros_like(dec_inp_pos)
-
-        dec_inp_vel[1:src_seq_len] = (dec_inp_pos[1:] - dec_inp_pos[:-1])
-        dec_inp_long_range[5:src_seq_len] = (dec_inp_pos[5:] - dec_inp_pos[:-5])
-
-        decoder_inputs[i] = np.concatenate((dec_inp_pos,dec_inp_vel,dec_inp_long_range), axis=-1).reshape(tgt_seq_len, -1)
-
-        decoder_outputs[i, :, :] = data_sel[src_seq_len:, 0:pose_size]
-
-        distance[i] = self.compute_difference_matrix(
-            enc_inp_pos.reshape(src_seq_len,-1), decoder_outputs[i])[0]
-      elif self._params['pose_format'] == "rotmat_long_range":
-        encoder_inputs[i], decoder_inputs [i]= self._rotmat_long_range_fn(data_sel, src_seq_len, tgt_seq_len)
+      if self._pose_format == 'expmap' and self._DP_method == 'vel':
+        encoder_inputs[i], decoder_inputs[i] = self._expmap_long_range_fn(data_sel, src_seq_len, tgt_seq_len)
 
         decoder_outputs[i, :, :] = data_sel[src_seq_len:, 0:pose_size]
 
         distance[i] = self.compute_difference_matrix(
             data_sel[:src_seq_len], decoder_outputs[i])[0]
 
+      elif self._pose_format == 'rotmat' and self._DP_method == 'vel':
+        encoder_inputs[i], decoder_inputs[i] = self._rotmat_long_range_fn(data_sel, src_seq_len, tgt_seq_len)
+
+        decoder_outputs[i, :, :] = data_sel[src_seq_len:, 0:pose_size]
+
+        distance[i] = self.compute_difference_matrix(
+            data_sel[:src_seq_len], decoder_outputs[i])[0]
       else:
+        print('please check pose_format (it have to be one of [expmap, rotmat])')
         encoder_inputs[i, :, :] = data_sel[0:src_seq_len, :]
         decoder_inputs[i, :, :] = data_sel[src_seq_len:(src_seq_len+tgt_seq_len), :]
         decoder_outputs[i, :, :] = data_sel[src_seq_len:, 0:pose_size]
         action_id_instance[i, :] = self._action_ids[action]
         distance[i] = self.compute_difference_matrix(
             encoder_inputs[i], decoder_outputs[i])[0]
+
       # tgt_seq_len x 96
       decoder_outputs_srnn = np.expand_dims(data_sel_srnn[src_seq_len:], axis=0)
       # tgt_seq_len x 32 x 3
@@ -654,15 +603,24 @@ class H36MDataset(torch.utils.data.Dataset):
       self.compute_norm_stats(all_dataset)
     self.normalize_data()
 
-    if self._params['pose_format'] == "expmap_with_Vel":
+    self._pose_format = self._params['pose_format'].split('_')[0]
+    if len(self._params['pose_format'].split('_')) == 1:
+      self._DP_method = 'onlypose'
+    else:
+      self._DP_method = self._params['pose_format'].split('_')[1] ## Data Processing Method
+      if self._DP_method == 'vel':
+        self._velocity_frame = list(map(int,self._params['pose_format'].split('_')[2:]))
+
+    if self._DP_method == "vel":
       self._pose_dim = self._norm_stats['std'].shape[-1]
-      self._data_dim = self._pose_dim * 2     ## expmap 3 values and velocity 3 values
-    elif self._params['pose_format'] == "expmap_long_range":
-      self._pose_dim = self._norm_stats['std'].shape[-1]
-      self._data_dim = self._pose_dim * 3     ## expmap 3 values and velocity 3 values and long range(5 frame) velocity 3 values
-    elif self._params['pose_format'] == "rotmat_long_range":
-      self._pose_dim = self._norm_stats['std'].shape[-1]
-      self._data_dim = self._pose_dim * 3     ## rotmat 9 values and velocity 9 values and long range(5 frame) velocity 9 values
+      n_velocity_frame = len(self._velocity_frame)
+      self._data_dim = self._pose_dim * (n_velocity_frame + 1)     ## expmap 3 values and velocity 3 values
+    # elif self._params['pose_format'] == "expmap_long_range":
+    #   self._pose_dim = self._norm_stats['std'].shape[-1]
+    #   self._data_dim = self._pose_dim * 3     ## expmap 3 values and velocity 3 values and long range(5 frame) velocity 3 values
+    # elif self._params['pose_format'] == "rotmat_long_range":
+    #   self._pose_dim = self._norm_stats['std'].shape[-1]
+    #   self._data_dim = self._pose_dim * 3     ## rotmat 9 values and velocity 9 values and long range(5 frame) velocity 9 values
     else:
       self._pose_dim = self._norm_stats['std'].shape[-1]
       self._data_dim = self._pose_dim
@@ -707,6 +665,7 @@ class H36MDataset(torch.utils.data.Dataset):
     if is_normalized:
       action_sequence_ = action_sequence_*self._norm_stats['std'] + self._norm_stats['mean']
     rotmats = action_sequence_.reshape((B*S, _NMAJOR_JOINTS, -1))
+
     if org_format == 'expmap' or org_format == 'expmap_with_Vel' or org_format == 'expmap_long_range':
       rotmats = utils.expmap_to_rotmat(rotmats)
 
@@ -723,7 +682,7 @@ class H36MDataset(torch.utils.data.Dataset):
     S, D = pred_sequence.shape
     pred_sequence = pred_sequence.reshape((1, S, D))
     # 1 x seq_len, 3*n_joints
-    pred_sequence = self.convert_to_euler(pred_sequence, self._params['pose_format'])
+    pred_sequence = self.convert_to_euler(pred_sequence, self._pose_format)
     return np.squeeze(pred_sequence)
 
   def post_process_to_euler(self, norm_seq):
@@ -734,7 +693,7 @@ class H36MDataset(torch.utils.data.Dataset):
     """
     batch_size, seq_length, D = norm_seq.shape
     # batch_size x seq_length x n_major_joints*dof
-    euler_seq = self.convert_to_euler(norm_seq, self._params['pose_format'])
+    euler_seq = self.convert_to_euler(norm_seq, self._pose_format)
     # batch_size x seq_length x n_major_joints x dof (or joint dim)
     euler_seq = euler_seq.reshape((batch_size, seq_length, _NMAJOR_JOINTS, 3))
     p_euler_padded = np.zeros([batch_size, seq_length, _NH36M_JOINTS, 3])
@@ -760,7 +719,7 @@ class H36MDataset(torch.utils.data.Dataset):
     sequence = norm_seq*self._norm_stats['std'] + self._norm_stats['mean']
 
     # convert to expmaps in case pose format is rotation matrices
-    if self._params['pose_format'] == 'rotmat':
+    if self._pose_format == 'rotmat':
       sequence = sequence.reshape((batch_size*seq_length, _NMAJOR_JOINTS, 9))
       sequence = utils.rotmat_to_expmap(sequence)
       # batch_size x seq_length x 63
