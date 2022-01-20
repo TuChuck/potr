@@ -205,6 +205,3 @@ if __name__ == '__main__':
       pose_encoder_fn, pose_decoder_fn
   )
   model_fn.train()
-
-
-

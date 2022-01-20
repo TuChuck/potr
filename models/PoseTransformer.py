@@ -327,13 +327,13 @@ class PoseTransformer(nn.Module):
       return out_sequence, out_class, attn_weights, enc_weights, mat
 
     return out_sequence, attn_weights, enc_weights, mat
+
   def residual_line(self, out_sequence_, target_pose_seq_, end):
     if out_sequence_.shape[-1] != target_pose_seq_.shape[-1]:
       _n = target_pose_seq_.shape[-1] / out_sequence_.shape[-1]
       _,bs,_ = target_pose_seq_.shape
       tgt_seq_ = target_pose_seq_.reshape(self._target_seq_length,bs,self.n_joint,-1) 
-      target_pose_seq_ = tgt_seq_[:,:,:,:3].reshape(self._target_seq_length,bs,-1)
-
+      target_pose_seq_ = tgt_seq_[:,:,:,:9].reshape(self._target_seq_length,bs,-1)
       return out_sequence_ + target_pose_seq_
     else:
       return out_sequence_ + target_pose_seq_[:, :, 0:end]

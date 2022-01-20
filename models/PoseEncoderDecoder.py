@@ -65,6 +65,10 @@ def pose_decoder_gcn(params):
     output_feature = 9
   elif params['pose_format'] == 'expmap_with_Vel':
     output_feature = 6
+  elif params['pose_format'] == 'expmap_long_range':
+    output_feature = 9
+  elif params['pose_format'] == 'rotmat_long_range':
+    output_feature = 27
   else:
     output_feature = 3
 
@@ -84,6 +88,10 @@ def pose_encoder_gcn(params):
     input_features = 9
   elif params['pose_format'] == 'expmap_with_Vel':
     input_features = 6
+  elif params['pose_format'] == 'expmap_long_range':
+    input_features = 9
+  elif params['pose_format'] == 'rotmat_long_range':
+    input_features = 27
   else:
     input_features = 3
   encoder = GCN.SimpleEncoder(
@@ -104,6 +112,10 @@ def pose_encoder_conv1d(params):
     input_channels = 9
   elif params['pose_format'] == 'expmap_with_Vel':
     input_channels = 6
+  elif params['pose_format'] == 'expmap_long_range':
+    input_channels = 9
+  elif params['pose_format'] == 'rotmat_long_range':
+    input_channels = 27
   else:
     input_channels = 3
   encoder = Conv1DEncoder.Pose1DEncoder(
@@ -119,6 +131,10 @@ def pose_encoder_conv1dtemporal(params):
     _dof = 9
   elif params['pose_format'] == 'expmap_with_Vel':
     _dof = 6
+  elif params['pose_format'] == 'expmap_long_range':
+    _dof = 9
+  elif params['pose_format'] == 'rotmat_long_range':
+    _dof = 27
   else:
     _dof = 3
   dof = _dof
