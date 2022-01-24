@@ -269,7 +269,7 @@ class ModelFn(object):
       return epoch_loss/N, act_loss/N
 
     return epoch_loss/N
-
+  
   def train(self):
     """Main training loop."""
     self._params['learning_rate'] = self._lr_scheduler.get_last_lr()[0]
@@ -390,6 +390,9 @@ class ModelFn(object):
     for ms in [80, 160, 320, 400, 560, 1000]:
       print(" {0:5d} |".format(ms), end="")
     print()
+
+  def test_bench(self):
+    pass
 
   def flush_curves(self):
     path_ = os.path.join(self._params['model_prefix'], 'loss_info')

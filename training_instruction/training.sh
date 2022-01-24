@@ -1,5 +1,5 @@
 python training/transformer_model_fn.py \
-  --model_prefix=./model_params/POTR_expmap_long_range_vel_2 \
+  --model_prefix=./model_params/POTR_rot_vel_1_5_10_15 \
   --batch_size=16 \
   --data_path=./data/h3.6m \
   --learning_rate=0.0001 \
@@ -15,7 +15,7 @@ python training/transformer_model_fn.py \
   --lr_step_size=400 \
   --learning_rate_fn=step \
   --warmup_epochs=100 \
-  --pose_format=expmap_long_range \
+  --pose_format=rotmat_vel_1_5_10_15 \
   --pose_embedding_type=gcn_enc \
   --dataset=h36m_v2 \
   --pre_normalization \

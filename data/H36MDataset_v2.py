@@ -309,7 +309,6 @@ class H36MDataset(torch.utils.data.Dataset):
     elif self._pose_format == 'rotmat' and self._DP_method == 'vel':
       encoder_inputs[:], decoder_inputs[:] = self._rotmat_long_range_fn(data_sel, src_seq_len, target_seq_len)
     else:
-      print('please check pose_format (it have to be one of [expmap, rotmat])')
       encoder_inputs[:, 0:input_size] = data_sel[0:src_seq_len,:]
       decoder_inputs[:, 0:input_size] = \
           data_sel[src_seq_len:src_seq_len+target_seq_len, :]
@@ -353,14 +352,15 @@ class H36MDataset(torch.utils.data.Dataset):
     velocity_frame = self._velocity_frame
 
     enc_inp_pos = data_sel[0:src_seq_len,:].reshape(src_seq_len, n_Joints, -1)
-    enc_inp_vel = np.zeros_like(enc_inp_pos)
 
     dec_inp_pos = data_sel[src_seq_len:src_seq_len+target_seq_len, :].reshape(target_seq_len, n_Joints, -1)
-    dec_inp_vel = np.zeros_like(dec_inp_pos)
 
     encoder_inputs = enc_inp_pos
     decoder_inputs = dec_inp_pos
     for nf in velocity_frame:
+      enc_inp_vel = np.zeros_like(enc_inp_pos)
+      dec_inp_vel = np.zeros_like(dec_inp_pos)
+
       enc_inp_vel[nf:src_seq_len] = (data_sel[nf:src_seq_len] - \
                                       data_sel[:src_seq_len-nf]).reshape(src_seq_len-nf, n_Joints, -1)
       dec_inp_vel[nf:src_seq_len] = (dec_inp_pos[nf:] - dec_inp_pos[:-nf])
@@ -380,17 +380,18 @@ class H36MDataset(torch.utils.data.Dataset):
     output = [9,9,9] shape
     """
     n_Joints = self._params['n_joints']
-    velocity_frame = self.velocity_frame
+    velocity_frame = self._velocity_frame
 
     enc_inp_pos = data_sel[0:src_seq_len,:].reshape(src_seq_len, n_Joints,3,3)
-    enc_inp_vel = np.zeros_like(enc_inp_pos)
 
     dec_inp_pos = data_sel[src_seq_len:src_seq_len+target_seq_len, :].reshape(target_seq_len, n_Joints,3,3)
-    dec_inp_vel = np.zeros_like(dec_inp_pos)
 
     encoder_inputs = enc_inp_pos.reshape(src_seq_len, n_Joints,-1)
     decoder_inputs = dec_inp_pos.reshape(target_seq_len, n_Joints,-1)
     for nf in velocity_frame:
+      enc_inp_vel = np.zeros_like(enc_inp_pos)
+      dec_inp_vel = np.zeros_like(dec_inp_pos)
+
       enc_inp_vel[nf:src_seq_len] = (enc_inp_pos[:-nf].transpose(0,1,3,2) @ enc_inp_pos[nf:])
       enc_inp_vel = enc_inp_vel.reshape(src_seq_len,n_Joints,-1)
 
@@ -504,7 +505,6 @@ class H36MDataset(torch.utils.data.Dataset):
         distance[i] = self.compute_difference_matrix(
             data_sel[:src_seq_len], decoder_outputs[i])[0]
       else:
-        print('please check pose_format (it have to be one of [expmap, rotmat])')
         encoder_inputs[i, :, :] = data_sel[0:src_seq_len, :]
         decoder_inputs[i, :, :] = data_sel[src_seq_len:(src_seq_len+tgt_seq_len), :]
         decoder_outputs[i, :, :] = data_sel[src_seq_len:, 0:pose_size]

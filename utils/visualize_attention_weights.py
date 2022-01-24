@@ -24,6 +24,7 @@
 
 """Visualization of the attention weights."""
 
+from cv2 import DISOPTICAL_FLOW_PRESET_MEDIUM
 import torch
 import torch.nn as nn
 import numpy as np
@@ -86,8 +87,14 @@ def get_windows(
     data, 
     source_seq_len, 
     target_seq_len, 
-    pad_decoder_inputs, 
-    input_size, n_windows):
+    pad_decoder_inputs,
+    input_size,
+    pose_size, 
+    pose_format,
+    DP_method,
+    case_rotmat_fn,
+    case_expmap_fn,
+    n_windows):
   N, _ = data.shape
   src_seq_len = source_seq_len - 1
 
@@ -99,15 +106,24 @@ def get_windows(
   for n in range(n_windows):
     encoder_inputs = np.zeros((src_seq_len, input_size), dtype=np.float32)
     decoder_inputs = np.zeros((target_seq_len, input_size), dtype=np.float32)
-    decoder_outputs = np.zeros((target_seq_len, input_size), dtype=np.float32)
+    decoder_outputs = np.zeros((target_seq_len, pose_size), dtype=np.float32)
 
     # total_frames x n_joints*joint_dim
     total_frames = source_seq_len + target_seq_len
     data_sel = data[start_frame:(start_frame+total_frames), :]
-                                                                                 
-    encoder_inputs[:, 0:input_size] = data_sel[0:src_seq_len,:]
-    decoder_inputs[:, 0:input_size] = data_sel[src_seq_len:src_seq_len+target_seq_len, :]
-    decoder_outputs[:, 0:input_size] = data_sel[source_seq_len:, 0:input_size]
+
+    if pose_format == 'expmap' and DP_method == 'vel':
+      encoder_inputs[:], decoder_inputs[:] = case_expmap_fn(data_sel, src_seq_len, target_seq_len)
+      decoder_outputs[:] = data_sel[src_seq_len:, 0:pose_size]
+
+    elif pose_format == 'rotmat' and DP_method == 'vel':
+      encoder_inputs[:], decoder_inputs[:] = case_rotmat_fn(data_sel, src_seq_len, target_seq_len)
+      decoder_outputs[:] = data_sel[src_seq_len+1:, 0:pose_size]
+
+    else:
+      encoder_inputs[:, 0:input_size] = data_sel[0:src_seq_len,:]
+      decoder_inputs[:, 0:input_size] = data_sel[src_seq_len:src_seq_len+target_seq_len, :]
+      decoder_outputs[:, 0:pose_size] = data_sel[source_seq_len:, 0:pose_size]
 
     if pad_decoder_inputs:
       query = decoder_inputs[0:1, :]                                             
@@ -153,31 +169,45 @@ if __name__ == '__main__':
     for i in range(len(the_keys_)):
       entry_key = the_keys_[i]  # (5, 'walking', 1)
       data = eval_dataset_fn.dataset._data[entry_key]
+      pose_format = eval_dataset_fn.dataset._pose_format
+      DP_method = eval_dataset_fn.dataset._DP_method
+
+      ##func
+      case_rotmat_fn, case_expmap_fn = eval_dataset_fn.dataset._rotmat_long_range_fn, \
+                                 eval_dataset_fn.dataset._expmap_long_range_fn
 
       encoder_inputs, decoder_inputs, decoder_outputs = get_windows(
           data, 
           params['source_seq_len'], 
           params['target_seq_len'], 
           params['pad_decoder_inputs'], 
-          params['input_dim'], 
+          params['input_dim'],
+          params['pose_dim'],
+          pose_format,
+          DP_method,
+          case_rotmat_fn,
+          case_expmap_fn,
           n_windows
       )
-      pred_sequence, attn_weights, enc_weights= potr(
+      potr_pred = potr(
           encoder_inputs.to(_DEVICE), 
           decoder_inputs.to(_DEVICE), 
           get_attn_weights=True
       )
+      pred_sequence = potr_pred[0]
+      attn_weights  = potr_pred[2]
+      enc_weights   = potr_pred[3]
 
       enc_weights = enc_weights.cpu().numpy()
       attn_weights = attn_weights[-1].cpu().numpy()
       attn_weights = [attn_weights[j] for j in range(n_windows)]
-      mat = np.concatenate(attn_weights, axis=-1)
-      mat = np.concatenate([enc_weights[j] for j in range(n_windows)], axis=-1)
+      mat_attn = np.concatenate(attn_weights, axis=-1)
+      mat_enc = np.concatenate([enc_weights[j] for j in range(n_windows)], axis=-1)
 
       print(enc_weights.shape)
 
       fig, ax = plt.subplots(figsize=(20,10))
-      ax.matshow(mat)
+      ax.matshow(mat_attn)
       plt.ylabel("")
       plt.xlabel("")
       fig.tight_layout()
