@@ -485,9 +485,9 @@ class H36MDataset(torch.utils.data.Dataset):
       idx = idx + source_seq_len_complete
       the_key = (self._test_subject, action, subsequence)
       data_sel = self._data[the_key]
-      data_sel = data_sel[(idx-src_seq_len):(idx+tgt_seq_len) , :]
+      data_sel = data_sel[(idx-source_seq_len_complete):(idx+tgt_seq_len) , :]
       data_sel_srnn = self._data_srnn[the_key]
-      data_sel_srnn = data_sel_srnn[(idx-src_seq_len):(idx+tgt_seq_len) , :]
+      data_sel_srnn = data_sel_srnn[(idx-source_seq_len_complete):(idx+tgt_seq_len) , :]
 
       if self._pose_format == 'expmap' and self._DP_method == 'vel':
         encoder_inputs[i], decoder_inputs[i] = self._expmap_long_range_fn(data_sel, src_seq_len, tgt_seq_len)
@@ -507,13 +507,13 @@ class H36MDataset(torch.utils.data.Dataset):
       else:
         encoder_inputs[i, :, :] = data_sel[0:src_seq_len, :]
         decoder_inputs[i, :, :] = data_sel[src_seq_len:(src_seq_len+tgt_seq_len), :]
-        decoder_outputs[i, :, :] = data_sel[src_seq_len:, 0:pose_size]
+        decoder_outputs[i, :, :] = data_sel[source_seq_len_complete:, 0:pose_size]
         action_id_instance[i, :] = self._action_ids[action]
         distance[i] = self.compute_difference_matrix(
             encoder_inputs[i], decoder_outputs[i])[0]
 
       # tgt_seq_len x 96
-      decoder_outputs_srnn = np.expand_dims(data_sel_srnn[src_seq_len:], axis=0)
+      decoder_outputs_srnn = np.expand_dims(data_sel_srnn[source_seq_len_complete:], axis=0)
       # tgt_seq_len x 32 x 3
       euler = decoder_outputs_srnn.reshape((tgt_seq_len, -1, 3))
       euler = utils.expmap_to_euler(euler)
