@@ -1,5 +1,5 @@
 python training/transformer_model_fn.py \
-  --model_prefix=./model_params_v2/POTR_vel_time_1 \
+  --model_prefix=./model_params_v2/POTR_rot_veltime_1_10_35 \
   --batch_size=16 \
   --data_path=./data/h3.6m \
   --learning_rate=0.0001 \
@@ -15,7 +15,7 @@ python training/transformer_model_fn.py \
   --lr_step_size=400 \
   --learning_rate_fn=step \
   --warmup_epochs=200 \
-  --pose_format=rotmat_veltime_1 \
+  --pose_format=rotmat_veltime_1_10_35 \
   --pose_embedding_type=gcn_enc \
   --dataset=h36m_v2 \
   --pre_normalization \

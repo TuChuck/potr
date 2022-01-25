@@ -449,8 +449,9 @@ class H36MDataset(torch.utils.data.Dataset):
         encoder_inputs = np.concatenate((encoder_inputs, enc_inp_vel), axis=0)
         decoder_inputs = np.concatenate((decoder_inputs,dec_inp_vel), axis=0)
 
-        src_seq_len = src_seq_len * (len(velocity_frame) + 1)
-        target_seq_len = target_seq_len * (len(velocity_frame) + 1)
+    if DP_method.find("time") != -1:
+      src_seq_len = src_seq_len * (len(velocity_frame) + 1)
+      target_seq_len = target_seq_len * (len(velocity_frame) + 1)
         
     encoder_inputs_ = encoder_inputs.copy().reshape(src_seq_len, -1)
     decoder_inputs_ = decoder_inputs.copy().reshape(target_seq_len, -1)
