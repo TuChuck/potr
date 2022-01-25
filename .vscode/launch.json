@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["--params_json", "./model_params/POTR_rot_long_range_vel_3/config/config.json",
+            "args": ["--params_json", "./model_params/POTR_rot_vel_1_5_10_15/config/config.json",
                      "--model","./model_params/POTR_rot_long_range_vel_3/models/ckpt_epoch_0499.pt"]
         },
         {
@@ -20,8 +20,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--config_path",
-                "./model_params/POTR_rot_long_range_vel_3"
+                "--config_path","./model_params/original"
             ]
         },
         {
@@ -57,7 +56,8 @@
                 "--pos_enc_beta","500",
                 "--predict_activity",
                 "--action","walking",
-                "--GCN_hidden_dim","512"
+                "--GCN_hidden_dim","512",
+                "--positional_enc_method","circular_fn"
             ],
             "justMyCode": false
         }

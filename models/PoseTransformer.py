@@ -82,7 +82,10 @@ class PoseTransformer(nn.Module):
                query_selection=False,
                pos_encoding_params=(10000, 1),
                n_joint=_N_JOINT,
-               pose_format = 'expmap'):
+               pose_format = 'expmap',
+               DP_method = "onlypose",
+               velocity_frame = None,
+               positional_encoding = "circular_fn"):
     """Initialization of pose transformers."""
     super(PoseTransformer, self).__init__()
     self._target_seq_length = target_seq_length
@@ -104,6 +107,9 @@ class PoseTransformer(nn.Module):
     self._pos_encoding_params = pos_encoding_params
     self.n_joint = n_joint
     self._pose_format = pose_format
+    self._DP_method = DP_method
+    self._velocity_frame = velocity_frame
+    self._positional_encoding = positional_encoding
 
     self._transformer = Transformer(
         num_encoder_layers=num_encoder_layers,
@@ -123,16 +129,26 @@ class PoseTransformer(nn.Module):
     nparams = sum([np.prod(p.size()) for p in t_params])
     print('[INFO] ({}) Transformer has {} parameters!'.format(thisname, nparams))
 
-    self._pos_encoder = PositionEncodings.PositionEncodings1D(
-        num_pos_feats=self._model_dim,
-        temperature=self._pos_encoding_params[0],
-        alpha=self._pos_encoding_params[1]
-    )
-    self._pos_decoder = PositionEncodings.PositionEncodings1D(
-        num_pos_feats=self._model_dim,
-        temperature=self._pos_encoding_params[0],
-        alpha=self._pos_encoding_params[1]
-    )
+    if self._positional_encoding == "circular_fn":
+      self._pos_encoder = PositionEncodings.PositionEncodings1D(
+          num_pos_feats=self._model_dim,
+          temperature=self._pos_encoding_params[0],
+          alpha=self._pos_encoding_params[1]
+      )
+      self._pos_decoder = PositionEncodings.PositionEncodings1D(
+          num_pos_feats=self._model_dim,
+          temperature=self._pos_encoding_params[0],
+          alpha=self._pos_encoding_params[1]
+      )
+
+    if self._positional_encoding == "learning_fn":
+      self._pos_encoder = PositionEncodings.PositionEncodings_learning(
+          num_pos_feats=self._model_dim,
+      )
+      self._pos_decoder = PositionEncodings.PositionEncodings1D(
+          num_pos_feats=self._model_dim,
+      )
+      
     # self.init_pose_encoder_decoders(init_fn)
     self._use_class_token = True
     self.init_position_encodings()
@@ -163,22 +179,37 @@ class PoseTransformer(nn.Module):
 
   def init_position_encodings(self):
     src_len = self._source_seq_length-1
+    tgt_len = self._target_seq_length
+    requires_grad = False
+
+    if self._DP_method.find('vel') == 0:
+      if self._DP_method.find('time') != -1:
+        src_len = src_len * (len(self._velocity_frame) + 1)
+        tgt_len = tgt_len * (len(self._velocity_frame) + 1)
+        self._target_seq_length = tgt_len
+        requires_grad = True
     # when using a token we need an extra element in the sequence
     if self._use_class_token:
       src_len = src_len + 1
+
     encoder_pos_encodings = self._pos_encoder(src_len).view(
             src_len, 1, self._model_dim)
-    decoder_pos_encodings = self._pos_decoder(self._target_seq_length).view(
-            self._target_seq_length, 1, self._model_dim)
+    decoder_pos_encodings = self._pos_decoder(tgt_len).view(
+            tgt_len, 1, self._model_dim)
     mask_look_ahead = torch.from_numpy(
         utils.create_look_ahead_mask(
-            self._target_seq_length, self._non_autoregressive))
+            tgt_len, self._non_autoregressive))
+
     self._encoder_pos_encodings = nn.Parameter(
-        encoder_pos_encodings, requires_grad=False)
+        encoder_pos_encodings, requires_grad=requires_grad)
     self._decoder_pos_encodings = nn.Parameter(
-        decoder_pos_encodings, requires_grad=False)
+        decoder_pos_encodings, requires_grad=requires_grad)
     self._mask_look_ahead = nn.Parameter(
         mask_look_ahead, requires_grad=False)
+
+    if requires_grad:
+      nn.init.xavier_uniform_(self._encoder_pos_encodings.data)
+      nn.init.xavier_uniform_(self._decoder_pos_encodings.data)
 
   def forward(self, 
               input_pose_seq,
@@ -343,6 +374,9 @@ class PoseTransformer(nn.Module):
       tgt_seq_ = target_pose_seq_.reshape(self._target_seq_length,bs,self.n_joint,-1) 
       target_pose_seq_ = tgt_seq_[:,:,:,:onlypose_len].reshape(self._target_seq_length,bs,-1)
       return out_sequence_ + target_pose_seq_
+    elif self._DP_method.find('time') != -1:
+      nseq = int(out_sequence_.shape[0] / (len(self._velocity_frame)+1))
+      return (out_sequence_ + target_pose_seq_[:, :, 0:end])[:nseq]
     else:
       return out_sequence_ + target_pose_seq_[:, :, 0:end]
   def predict_activity(self, attn_output, memory):
@@ -480,7 +514,10 @@ def model_factory(params, pose_embedding_fn, pose_decoder_fn):
       pose_decoder=pose_decoder_fn(params),
       query_selection=params['query_selection'],
       pos_encoding_params=(params['pos_enc_beta'], params['pos_enc_alpha']),
-      pose_format = params['pose_format'].split('_')[0]
+      pose_format = params['pose_format'].split('_')[0],
+      DP_method = params['DP_method'],
+      velocity_frame = params['velocity_frame'],
+      positional_encoding = params['positional_enc_method']
   )
 
 

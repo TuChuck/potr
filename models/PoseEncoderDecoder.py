@@ -144,12 +144,16 @@ def _select_params(params):
 
   if len(_format) > 1:
     DP_method = _format[1]                  ## Data Processing method
-    n_velocity_frame = len(_format[2:]) + 1 ## +1 is for including currunt pose
+    if DP_method.find("vel") == 0:
+      if DP_method.find("feature") != -1:
+        input_scale = len(_format[2:]) + 1 ## +1 is for including currunt pose
+      if DP_method.find("time") != -1:
+        input_scale = 1
   else:
     DP_method = 'onlypose'
-    n_velocity_frame = 1
+    input_scale = 1
 
-  return pose_format, n_velocity_frame
+  return pose_format, input_scale
 
 def select_pose_encoder_decoder_fn(params):
   if params['pose_embedding_type'].lower() == 'simple':

@@ -144,6 +144,15 @@ class PositionEncodings1D(object):
         self._temperature, (2 * (i//2)) / np.float32(self._num_pos_feats))
     return self._alpha*pos * angle_rates
 
+class PositionEncodings_learning(object):
+  def __init__(self, num_pos_feats=512):
+    self._num_pos_feats = num_pos_feats
+
+  def __call__(self, seq_length):
+    pos_encoding = torch.FloatTensor(seq_length,1,self._num_pos_feats)
+
+    return pos_encoding
+
 
 def visualize_2d_encodings():
   import cv2

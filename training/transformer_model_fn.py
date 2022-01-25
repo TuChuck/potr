@@ -130,7 +130,6 @@ def dataset_factory(params):
   else:
     raise ValueError('Unknown dataset {}'.format(params['dataset']))
 
-
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('--model_prefix', type=str, default='')
@@ -156,7 +155,7 @@ if __name__ == '__main__':
   parser.add_argument('--lr_step_size',type=int, default=400)
   parser.add_argument('--learning_rate_fn',type=str, default='step')
   parser.add_argument('--warmup_epochs', type=int, default=100)
-  parser.add_argument('--pose_format', type=str, default='rotmat')
+  parser.add_argument('--pose_format', type=str.lower, default='rotmat')
   parser.add_argument('--remove_low_std', action='store_true')
   parser.add_argument('--remove_global_trans', action='store_true')
   parser.add_argument('--loss_fn', type=str, default='l1')
@@ -180,6 +179,7 @@ if __name__ == '__main__':
   parser.add_argument('--pos_enc_alpha', type=float, default=10)
   parser.add_argument('--pos_enc_beta', type=float, default=500)
   parser.add_argument('--GCN_hidden_dim',type=int, default=512)
+  parser.add_argument('--positional_enc_method',type = str, default="circular_fn")
   args = parser.parse_args()
   
   params = vars(args)
@@ -187,6 +187,9 @@ if __name__ == '__main__':
 
   params['input_dim'] = train_dataset_fn.dataset._data_dim
   params['pose_dim'] = train_dataset_fn.dataset._pose_dim
+  params['DP_method'] = train_dataset_fn.dataset._DP_method
+  params['velocity_frame'] = train_dataset_fn.dataset._velocity_frame
+
   pose_encoder_fn, pose_decoder_fn = \
       PoseEncoderDecoder.select_pose_encoder_decoder_fn(params)
 

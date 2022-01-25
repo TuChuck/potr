@@ -47,6 +47,7 @@
     "pos_enc_alpha": 10.0,
     "pos_enc_beta": 500.0,
     "GCN_hidden_dim": 512,
+    "positional_enc_method": "circular_fn",
     "action_subset": [
         "walking"
     ],
@@ -54,5 +55,7 @@
     "virtual_dataset_size": 3200,
     "n_joints": 21,
     "input_dim": 189,
-    "pose_dim": 189
+    "pose_dim": 189,
+    "DP_method": "onlypose",
+    "velocity_frame": null
 }
