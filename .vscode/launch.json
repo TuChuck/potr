@@ -10,8 +10,8 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["--params_json", "./model_params/POTR_rot_vel_1_5_10_15/config/config.json",
-                     "--model","./model_params/POTR_rot_long_range_vel_3/models/ckpt_epoch_0499.pt"]
+            "args": ["--params_json", "./model_params/POTR_original/config/config.json",
+                     "--model","./model_params/POTR_original/models/ckpt_epoch_0499.pt"]
         },
         {
             "name": "Python: Current File_v2",
@@ -20,7 +20,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--config_path","./model_params/original"
+                "--config_path","./model_params_v2/POTR_rot_velfeature_1_5_10"
             ]
         },
         {
@@ -46,7 +46,7 @@
                 "--lr_step_size","400",
                 "--learning_rate_fn","step",
                 "--warmup_epochs","100",
-                "--pose_format","rotmat_veltime_1_10_35",
+                "--pose_format","rotmat_velfeature_1",
                 "--pose_embedding_type","gcn_enc",
                 "--dataset","h36m_v2",
                 "--pre_normalization",
@@ -57,7 +57,7 @@
                 "--predict_activity",
                 "--action","walking",
                 "--GCN_hidden_dim","512",
-                "--positional_enc_method","learning_fn"
+                "--positional_enc_method","circular_fn"
             ],
             "justMyCode": false
         }

@@ -37,6 +37,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
+torch.manual_seed(1234)
+torch.cuda.manual_seed_all(1234)
+
 thispath = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, thispath+"/../")
 
@@ -189,6 +192,8 @@ if __name__ == '__main__':
   params['pose_dim'] = train_dataset_fn.dataset._pose_dim
   params['DP_method'] = train_dataset_fn.dataset._DP_method
   params['velocity_frame'] = train_dataset_fn.dataset._velocity_frame
+  params['torch_initial_seed'] = torch.initial_seed()
+  params['torch.cuda.inital_seed'] = torch.cuda.initial_seed()
 
   pose_encoder_fn, pose_decoder_fn = \
       PoseEncoderDecoder.select_pose_encoder_decoder_fn(params)

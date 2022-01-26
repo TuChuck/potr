@@ -559,8 +559,9 @@ class H36MDataset(torch.utils.data.Dataset):
       elif self._pose_format == 'rotmat' and self._DP_method.find('vel') != -1:
         data_processing = self._rotmat_long_range_fn(data_sel, src_seq_len, tgt_seq_len, self._DP_method)
         
-        encoder_inputs = np.zeros((n_seeds, data_processing[2], input_size), dtype=np.float32)
-        decoder_inputs = np.zeros((n_seeds, data_processing[3], input_size), dtype=np.float32)
+        if i == 0:
+          encoder_inputs = np.zeros((n_seeds, data_processing[2], input_size), dtype=np.float32)
+          decoder_inputs = np.zeros((n_seeds, data_processing[3], input_size), dtype=np.float32)
 
         encoder_inputs[i] = data_processing[0].copy()
         decoder_inputs[i] = data_processing[1].copy()

@@ -180,6 +180,8 @@ if __name__ == '__main__':
 
   params['input_dim'] = train_dataset_fn.dataset._data_dim
   params['pose_dim'] = train_dataset_fn.dataset._pose_dim
+  params['DP_method'] = train_dataset_fn.dataset._DP_method
+  params['velocity_frame'] = train_dataset_fn.dataset._velocity_frame
   pose_encoder_fn, pose_decoder_fn = \
       PoseEncoderDecoder.select_pose_encoder_decoder_fn(params)
 
